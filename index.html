@@ -258,6 +258,30 @@
   }
   .ts-btn.ts-btn-active-out{background:rgba(239,68,68,0.18); color:var(--danger); border-color:rgba(239,68,68,0.4);}
   .ts-btn.ts-btn-active-sf{background:rgba(245,158,11,0.2); color:var(--accent2); border-color:rgba(245,158,11,0.45);}
+
+  /* Score breakdown in picks */
+  .pick-slot{display:flex; flex-direction:column; gap:4px;}
+  .pick-score{font-size:0.68rem; padding:2px 7px; border-radius:6px; text-align:center; font-weight:600; line-height:1.4;}
+  .pick-score-pending{color:var(--muted);}
+  .pick-score-positive{background:rgba(34,197,94,0.12); color:var(--accent);}
+  .pick-score-out{background:rgba(239,68,68,0.1); color:var(--danger);}
+
+  /* Scoring legend */
+  .scoring-legend{display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:14px; font-size:0.78rem;}
+  .legend-item{display:flex; align-items:center; gap:5px;}
+  .legend-badge{padding:2px 8px; border-radius:6px; font-weight:700; font-size:0.72rem;}
+  .legend-badge-qf{background:rgba(34,197,94,0.15); color:var(--accent);}
+  .legend-badge-sf{background:rgba(245,158,11,0.15); color:var(--accent2);}
+  .legend-badge-f{background:rgba(59,130,246,0.15); color:var(--blue);}
+
+  /* Stage search */
+  .stage-search{width:100%; padding:9px 12px; border-radius:9px; background:var(--card2); border:1px solid var(--border); color:var(--text); font-size:0.88rem; margin-bottom:10px;}
+  .stage-search:focus{outline:none; border-color:var(--blue);}
+
+  /* Leaderboard champion pick & max score */
+  .lb-champion{font-size:0.62rem; color:var(--muted); margin-top:2px;}
+  .lb-champion-correct{color:var(--accent);}
+  .lb-champion-wrong{color:var(--danger);}
 </style>
 </head>
 <body>
@@ -282,7 +306,7 @@
 <!-- PICKS PANEL -->
 <div class="panel active" id="panel-picks">
   <div class="inner-tabs">
-    <div class="inner-tab active" data-innertab="semis">Semis</div>
+    <div class="inner-tab active" data-innertab="semis">Team Picks</div>
     <div class="inner-tab" data-innertab="winner">Winner</div>
   </div>
   <div class="inner-panel active" id="innerpanel-semis"></div>
@@ -602,11 +626,16 @@ function renderSemisPicks(){
         </span>
       </div>
       <div class="picks-grid">
-        ${picks.map((val, i) => `
-          <select data-participant="${p}" data-idx="${i}">
-            ${teamOptions(val)}
-          </select>
-        `).join('')}
+        ${picks.map((val, i) => {
+          let scoreHtml = '';
+          if(val){
+            const { score, result } = teamScore(val);
+            if(result === 'eliminated') scoreHtml = `<div class="pick-score pick-score-out">Eliminated · 0 pts</div>`;
+            else if(score > 0) scoreHtml = `<div class="pick-score pick-score-positive">+${score} pts</div>`;
+            else scoreHtml = `<div class="pick-score pick-score-pending">Pending</div>`;
+          }
+          return `<div class="pick-slot"><select data-participant="${p}" data-idx="${i}">${teamOptions(val)}</select>${scoreHtml}</div>`;
+        }).join('')}
       </div>
     `;
     el.appendChild(card);
@@ -655,9 +684,9 @@ function renderSemisPicks(){
   resetBtn.textContent = '↺ Reset all picks';
   resetBtn.onclick = () => {
     showConfirm('Clear all participant picks?', () => {
-      state.participants.forEach(p => state.picks[p] = emptyPicks());
+      state.participants.forEach(p => { state.picks[p] = emptyPicks(); state.winnerPicks[p] = null; });
       saveState();
-      renderSemisPicks();
+      renderPicks();
     }, 'Clear');
   };
   btnRow.appendChild(resetBtn);
@@ -673,12 +702,14 @@ function buildPicksText(){
     lines.push(`${p}: ${list}`);
   });
 
-  lines.push('', '--- TEAM STATUS (R32/R16/QF) ---');
+  lines.push('', '--- TEAM STATUS ---');
   TEAMS.forEach(t => {
     const r32 = getStage(t, 'R32');
     const r16 = getStage(t, 'R16');
     const qf = getStage(t, 'QF');
-    lines.push(`${t}: R32=${r32}, R16=${r16}, QF=${qf}`);
+    const sf = getStage(t, 'SF');
+    const f = getStage(t, 'F');
+    lines.push(`${t}: R32=${r32}, R16=${r16}, QF=${qf}, SF=${sf}, F=${f}`);
   });
 
   return lines.join('\n');
@@ -749,11 +780,15 @@ function parsePicksText(text){
       const r32m = rest.match(/R32\s*=\s*(\w+)/i);
       const r16m = rest.match(/R16\s*=\s*(\w+)/i);
       const qfm = rest.match(/QF\s*=\s*(\w+)/i);
+      const sfm = rest.match(/SF\s*=\s*(\w+)/i);
+      const fm = rest.match(/\bF\s*=\s*(\w+)/i);
       teamStatuses.push({
         team,
         R32: normalizeStageValue(r32m && r32m[1]),
         R16: normalizeStageValue(r16m && r16m[1]),
-        QF: normalizeStageValue(qfm && qfm[1])
+        QF: normalizeStageValue(qfm && qfm[1]),
+        SF: normalizeStageValue(sfm && sfm[1]),
+        F: normalizeStageValue(fm && fm[1])
       });
     } else {
       const teams = rest.split(',')
@@ -780,8 +815,7 @@ function applyImportedPicks(picks, teamStatuses){
     updatedCount++;
   });
 
-  teamStatuses.forEach(({ team, R32, R16, QF }) => {
-    // Set R32, then cascade-reset anything downstream that's no longer eligible
+  teamStatuses.forEach(({ team, R32, R16, QF, SF, F }) => {
     setStage(team, 'R32', R32);
     if(R32 !== 'advanced'){
       setStage(team, 'R16', 'pending'); setStage(team, 'QF', 'pending');
@@ -796,7 +830,14 @@ function applyImportedPicks(picks, teamStatuses){
     setStage(team, 'QF', QF);
     if(QF !== 'advanced'){
       setStage(team, 'SF', 'pending'); setStage(team, 'F', 'pending');
+      return;
     }
+    setStage(team, 'SF', SF);
+    if(SF !== 'advanced'){
+      setStage(team, 'F', 'pending');
+      return;
+    }
+    setStage(team, 'F', F);
   });
 
   flushSave();
@@ -980,57 +1021,81 @@ function teamScore(team){
   return { result, score, hasUpside };
 }
 
+function teamMaxScore(team){
+  const { score, result } = teamScore(team);
+  if(result === 'eliminated') return score;
+  for(const key of STAGE_KEYS){
+    if(getStage(team, key) === 'pending'){
+      const idx = STAGE_KEYS.indexOf(key);
+      let extra = 0;
+      STAGE_KEYS.slice(idx).forEach(k => extra += STAGE_BONUS[k] || 0);
+      return score + extra;
+    }
+  }
+  return score; // champion — all stages decided
+}
+
 function computeParticipantStats(p){
   const allPicks = state.picks[p] || [];
   const filledPicks = allPicks.filter(x => x);
   const teamData = filledPicks.map(t => {
     const sc = teamScore(t);
-    const progress = teamProgress(t); // for the secondary "furthest stage" label only
-    return { team: t, ...sc, progressLabel: progress.label };
+    const progress = teamProgress(t);
+    return { team: t, ...sc, progressLabel: progress.label, maxScore: teamMaxScore(t) };
   });
   const totalPoints = teamData.reduce((sum, t) => sum + t.score, 0);
+  const maxPossible = teamData.reduce((sum, t) => sum + t.maxScore, 0);
   const hasEliminated = teamData.some(t => t.result === 'eliminated');
   const allDecided = teamData.every(t => t.result !== 'pending');
   const hasUpside = teamData.some(t => t.hasUpside);
 
   let pStatus;
   if(filledPicks.length < PICK_COUNT) pStatus = 'pending';
-  else if(hasEliminated) pStatus = 'out';
   else if(!hasUpside) pStatus = 'settled';
   else pStatus = 'contention';
 
-  return { name: p, picks: allPicks, filled: filledPicks.length, teamData, totalPoints, hasEliminated, allDecided, pStatus };
+  return { name: p, picks: allPicks, filled: filledPicks.length, teamData, totalPoints, maxPossible, hasEliminated, allDecided, pStatus };
 }
 
 function renderLeaderboard(){
   const el = document.getElementById('panel-leaderboard');
   el.innerHTML = '';
 
+  // Scoring legend
+  const legend = document.createElement('div');
+  legend.className = 'scoring-legend';
+  legend.innerHTML = `
+    <span style="color:var(--muted);font-weight:600;">Scoring:</span>
+    <span class="legend-item"><span class="legend-badge legend-badge-qf">QF</span>+50 pts</span>
+    <span class="legend-item"><span class="legend-badge legend-badge-sf">SF</span>+75 pts</span>
+    <span class="legend-item"><span class="legend-badge legend-badge-f">Finals</span>+100 pts</span>
+  `;
+  el.appendChild(legend);
+
   const results = state.participants.map(p => computeParticipantStats(p));
 
-  const cleanResults = results.filter(r => !r.hasEliminated && r.filled === PICK_COUNT);
+  const fullResults = results.filter(r => r.filled === PICK_COUNT);
   const allDecided = results.length > 0 && results.every(r => r.filled === PICK_COUNT && r.allDecided);
-  const topScore = cleanResults.length ? Math.max(...cleanResults.map(r => r.totalPoints)) : null;
-  const leaders = (allDecided && topScore !== null) ? cleanResults.filter(r => r.totalPoints === topScore) : [];
+  const topScore = fullResults.length ? Math.max(...fullResults.map(r => r.totalPoints)) : null;
+  const leaders = (allDecided && topScore !== null && topScore > 0)
+    ? fullResults.filter(r => r.totalPoints === topScore) : [];
 
-  if(leaders.length > 0 && topScore > 0){
+  if(leaders.length > 0){
     const banner = document.createElement('div');
     banner.className = 'winner-banner';
     banner.textContent = leaders.length === 1
       ? `🏆 ${leaders[0].name} wins with ${topScore} points!`
       : `🏆 It's a tie at ${topScore} points! Winners: ${leaders.map(w=>w.name).join(', ')}.`;
     el.appendChild(banner);
-  } else if(allDecided && cleanResults.length === 0){
+  } else if(allDecided && fullResults.length > 0 && topScore === 0){
     const banner = document.createElement('div');
     banner.className = 'nowinner-banner';
-    banner.textContent = `😬 No winner — every participant had at least one team eliminated.`;
+    banner.textContent = `😬 No one scored — no picked teams advanced past R16.`;
     el.appendChild(banner);
   }
 
-  // Participants with an eliminated pick always sink to the bottom, regardless of score.
-  // Among the rest, rank by total points (desc).
+  // Rank purely by total points (desc), then alphabetically
   results.sort((a, b) => {
-    if(a.hasEliminated !== b.hasEliminated) return a.hasEliminated ? 1 : -1;
     if(b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
     return a.name.localeCompare(b.name);
   });
@@ -1040,7 +1105,6 @@ function renderLeaderboard(){
   const pillFor = (r, isLeader) => {
     if(isLeader) return '<span class="lb-pill lb-pill-win">🏆 LEADING</span>';
     if(r.pStatus === 'pending') return '<span class="lb-pill lb-pill-pending">Picks Incomplete</span>';
-    if(r.pStatus === 'out') return '<span class="lb-pill lb-pill-out">Eliminated</span>';
     if(r.pStatus === 'settled') return '<span class="lb-pill lb-pill-pending">Final Score</span>';
     return '<span class="lb-pill lb-pill-alive">● In Contention</span>';
   };
@@ -1054,20 +1118,32 @@ function renderLeaderboard(){
 
   results.forEach((r, i) => {
     const isLeader = leaders.includes(r);
-    const cardClass = isLeader ? 'lb-winner' : r.hasEliminated ? 'lb-out' : '';
     const card = document.createElement('div');
-    card.className = `lb-card ${cardClass}`;
-    const scoreLabel = `${r.totalPoints > 0 ? '+' : ''}${r.totalPoints} pt${Math.abs(r.totalPoints)===1?'':'s'}`;
+    card.className = `lb-card ${isLeader ? 'lb-winner' : ''}`;
+    const scoreLabel = `${r.totalPoints > 0 ? '+' : ''}${r.totalPoints} pts`;
+    const maxLabel = (r.maxPossible > r.totalPoints && r.filled === PICK_COUNT)
+      ? ` · max ${r.maxPossible}` : '';
     const rowId = `lbrow-${i}`;
+
+    let championHtml = '';
+    const wp = state.winnerPicks[r.name];
+    if(wp){
+      const wResult = getStage(wp, 'F');
+      const wIcon = wResult === 'advanced' ? '✅' : wResult === 'eliminated' ? '❌' : '🏆';
+      const wCls = wResult === 'advanced' ? 'lb-champion-correct' : wResult === 'eliminated' ? 'lb-champion-wrong' : '';
+      championHtml = `<div class="lb-champion ${wCls}">${wIcon} Champion pick: ${wp}</div>`;
+    }
+
     card.innerHTML = `
       ${isLeader ? '<div class="crown">👑</div>' : ''}
       <div class="lb-rank">${i+1}</div>
       <div class="lb-avatar">${initials(r.name)}</div>
       <div class="lb-body">
         <div class="lb-top">
-          <span class="lb-name">${r.name} <span class="small">· ${scoreLabel}</span></span>
+          <span class="lb-name">${r.name} <span class="small">· ${scoreLabel}${maxLabel}</span></span>
           ${pillFor(r, isLeader)}
         </div>
+        ${championHtml}
         <span class="lb-toggle" data-toggle="${rowId}">Show picks ▾</span>
         <div class="lb-chips" id="${rowId}">
           ${r.teamData.length ? [...r.teamData].sort((a, b) => a.team.localeCompare(b.team)).map(t => {
@@ -1106,6 +1182,11 @@ function renderStageTab(stageKey){
     : `All 32 qualified teams. Tap "${stageConf.advanceLabel}" or "${stageConf.eliminateLabel}" to mark each R32 result.`;
   teamCard.innerHTML = `<div class="pname"><span>⚽ ${stageConf.label}</span></div>
     <div class="ts-hint">${hint}</div>`;
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'stage-search';
+  searchInput.placeholder = 'Filter teams…';
+  teamCard.appendChild(searchInput);
   const grid = document.createElement('div');
   grid.className = 'team-status-grid';
 
@@ -1156,6 +1237,14 @@ function renderStageTab(stageKey){
       setStage(team, stageKey, nextStatus);
       renderStageTab(stageKey);
       renderLeaderboard();
+    });
+  });
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase();
+    grid.querySelectorAll('.team-status-row').forEach(row => {
+      const name = row.querySelector('.team-name').textContent.toLowerCase();
+      row.style.display = name.includes(q) ? '' : 'none';
     });
   });
 
