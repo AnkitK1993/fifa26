@@ -987,11 +987,12 @@ function teamProgress(team){
 }
 
 // Cumulative scoring as a team progresses through the bracket:
-//   reaches Quarter Finals -> +50
+//   reaches Round of 16  -> +25
+//   reaches Quarter Finals -> +50 more
 //   reaches Semi Finals   -> +75 more
 //   reaches Finals        -> +100 more
 //   eliminated at any point -> no penalty
-const STAGE_BONUS = { R32: 0, R16: 50, QF: 75, SF: 100, F: 0 };
+const STAGE_BONUS = { R32: 25, R16: 50, QF: 75, SF: 100, F: 0 };
 const ELIMINATION_PENALTY = 0;
 
 function teamScore(team){
@@ -1066,6 +1067,7 @@ function renderLeaderboard(){
   legend.className = 'scoring-legend';
   legend.innerHTML = `
     <span style="color:var(--muted);font-weight:600;">Scoring:</span>
+    <span class="legend-item"><span class="legend-badge legend-badge-qf">R16</span>+25 pts</span>
     <span class="legend-item"><span class="legend-badge legend-badge-qf">QF</span>+50 pts</span>
     <span class="legend-item"><span class="legend-badge legend-badge-sf">SF</span>+75 pts</span>
     <span class="legend-item"><span class="legend-badge legend-badge-f">Finals</span>+100 pts</span>
