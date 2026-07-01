@@ -211,9 +211,10 @@
   .lb-pill-pending{background:rgba(139,154,171,0.16); color:var(--muted);}
   .crown{position:absolute; top:5px; right:7px; font-size:0.85rem;}
   /* Main row */
-  .lb-main-row{display:flex; align-items:center; gap:8px;}
-  .lb-namerow{flex:0 0 100px; width:100px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;}
-  .lb-name{font-weight:700; font-size:0.82rem; white-space:nowrap;}
+  .lb-main-row{display:flex; align-items:flex-start; gap:8px;}
+  .lb-namerow{flex:0 0 105px; width:105px; display:flex; flex-direction:column; align-items:flex-start; gap:2px; overflow:visible;}
+  .lb-name{font-weight:700; font-size:0.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:105px;}
+  .lb-pts-row{display:flex; align-items:center; gap:5px; flex-wrap:wrap;}
   .lb-pts{font-size:0.72rem; color:var(--muted); white-space:nowrap;}
   .lb-status-dot{width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0;}
   /* Mini team boxes */
@@ -1250,8 +1251,7 @@ function renderLeaderboard(){
         <div class="lb-main-row">
           <div class="lb-namerow">
             <span class="lb-name">${r.name}</span>
-            <span class="lb-pts">${scoreLabel}</span>
-            ${statusHtml}
+            <div class="lb-pts-row"><span class="lb-pts">${scoreLabel}</span>${statusHtml}</div>
           </div>
           <div class="lb-mini-teams">
             <div class="lb-mini-row">${row1}</div>
