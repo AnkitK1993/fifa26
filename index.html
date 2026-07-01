@@ -212,17 +212,17 @@
   .crown{position:absolute; top:5px; right:7px; font-size:0.85rem;}
   /* Main row */
   .lb-main-row{display:flex; align-items:center; gap:8px;}
-  .lb-namerow{flex:1; min-width:0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;}
+  .lb-namerow{flex:0 0 100px; width:100px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;}
   .lb-name{font-weight:700; font-size:0.82rem; white-space:nowrap;}
   .lb-pts{font-size:0.72rem; color:var(--muted); white-space:nowrap;}
   .lb-status-dot{width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0;}
   /* Mini team boxes */
-  .lb-mini-teams{display:flex; flex-direction:column; gap:2px; flex-shrink:0;}
+  .lb-mini-teams{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;}
   .lb-mini-row{display:flex; gap:2px;}
   .mini-team{
     display:inline-flex; flex-direction:row; align-items:center; justify-content:center;
-    text-align:center; border-radius:3px; padding:1px 3px;
-    letter-spacing:0.01em; gap:2px; white-space:nowrap;
+    flex:1; min-width:0; text-align:center; border-radius:3px; padding:1px 3px;
+    letter-spacing:0.01em; gap:2px; white-space:nowrap; overflow:hidden;
   }
   .mini-abbr{font-size:0.46rem; font-weight:800; line-height:1.5;}
   .mini-score{font-size:0.42rem; font-weight:600; line-height:1.5; opacity:0.85;}
@@ -1202,9 +1202,13 @@ function renderLeaderboard(){
     else if(r.pStatus === 'settled') statusHtml = '<span class="lb-pill lb-pill-pending">Final</span>';
     else statusHtml = '<span class="lb-status-dot"></span>';
 
-    // 2 rows of 3 mini team boxes
-    const row1 = r.picks.slice(0, 3).map(miniBox).join('');
-    const row2 = r.picks.slice(3, 6).map(miniBox).join('');
+    // 2 rows of 3 mini team boxes — sorted alphabetically (empties at end)
+    const sortedPicks = [...r.picks].sort((a, b) => {
+      if(!a && !b) return 0; if(!a) return 1; if(!b) return -1;
+      return a.localeCompare(b);
+    });
+    const row1 = sortedPicks.slice(0, 3).map(miniBox).join('');
+    const row2 = sortedPicks.slice(3, 6).map(miniBox).join('');
 
     // Detail: champion pick
     let champHtml = '';
