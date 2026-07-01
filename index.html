@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FIFA WC 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --bg:#0b0f14; --card:#141b22; --card2:#1b232c; --border:#262f3a;
@@ -209,9 +210,12 @@
   .lb-mini-teams{display:flex; flex-direction:column; gap:2px; flex-shrink:0;}
   .lb-mini-row{display:flex; gap:2px;}
   .mini-team{
-    font-size:0.46rem; font-weight:800; width:21px; text-align:center;
-    border-radius:3px; padding:1px 1px; line-height:1.5; letter-spacing:0.01em;
+    display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
+    width:28px; text-align:center; border-radius:3px; padding:2px 1px;
+    letter-spacing:0.01em; gap:0;
   }
+  .mini-abbr{font-size:0.46rem; font-weight:800; line-height:1.4;}
+  .mini-score{font-size:0.4rem; font-weight:600; line-height:1.2; opacity:0.85;}
   .mini-alive{background:rgba(34,197,94,0.2); color:var(--accent); border:1px solid rgba(34,197,94,0.35);}
   .mini-out{background:rgba(239,68,68,0.18); color:var(--danger); border:1px solid rgba(239,68,68,0.3);}
   .mini-wait{background:rgba(139,154,171,0.12); color:var(--muted); border:1px solid rgba(139,154,171,0.3);}
@@ -237,6 +241,16 @@
   .lb-detail-pts{font-size:0.78rem; font-weight:700; white-space:nowrap; flex-shrink:0;}
   .lb-detail-pts.pts-pos{color:var(--accent);}
   .lb-detail-max{font-size:0.66rem; color:var(--muted); white-space:nowrap; flex-shrink:0;}
+  /* Screenshot button */
+  .lb-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .lb-header .scoring-legend{margin-bottom:0;}
+  .lb-share-btn{
+    display:flex; align-items:center; gap:5px; background:rgba(59,130,246,0.15);
+    border:1px solid rgba(59,130,246,0.35); border-radius:8px; padding:5px 10px;
+    color:var(--blue); font-size:0.72rem; font-weight:700; cursor:pointer;
+    white-space:nowrap; flex-shrink:0; user-select:none; transition:background 0.15s;
+  }
+  .lb-share-btn:active{background:rgba(59,130,246,0.28);}
   .section-title{
     font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted);
     font-weight:700; margin:18px 0 10px;
@@ -1087,7 +1101,10 @@ function renderLeaderboard(){
   const el = document.getElementById('panel-leaderboard');
   el.innerHTML = '';
 
-  // Scoring legend
+  // Header row: scoring legend + share button
+  const header = document.createElement('div');
+  header.className = 'lb-header';
+
   const legend = document.createElement('div');
   legend.className = 'scoring-legend';
   legend.innerHTML = `
@@ -1097,7 +1114,48 @@ function renderLeaderboard(){
     <span class="legend-item"><span class="legend-badge legend-badge-sf">SF</span>+75 pts</span>
     <span class="legend-item"><span class="legend-badge legend-badge-f">Finals</span>+100 pts</span>
   `;
-  el.appendChild(legend);
+
+  const shareBtn = document.createElement('button');
+  shareBtn.className = 'lb-share-btn';
+  shareBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg> Share`;
+  shareBtn.addEventListener('click', async () => {
+    const listEl = el.querySelector('.lb-list');
+    if(!listEl || typeof html2canvas === 'undefined'){
+      alert('Screenshot not available yet, please try again.');
+      return;
+    }
+    shareBtn.textContent = '…';
+    shareBtn.disabled = true;
+    try {
+      const canvas = await html2canvas(listEl, {
+        backgroundColor: '#0b0f14',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], 'fifa26-leaderboard.png', { type: 'image/png' });
+        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+          await navigator.share({ files: [file], title: 'FIFA WC 2026 Leaderboard' });
+        } else {
+          // Fallback: download
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'fifa26-leaderboard.png'; a.click();
+          URL.revokeObjectURL(url);
+        }
+        shareBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg> Share`;
+        shareBtn.disabled = false;
+      }, 'image/png');
+    } catch(e) {
+      shareBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg> Share`;
+      shareBtn.disabled = false;
+    }
+  });
+
+  header.appendChild(legend);
+  header.appendChild(shareBtn);
+  el.appendChild(header);
 
   const results = state.participants.map(p => computeParticipantStats(p));
 
@@ -1130,12 +1188,14 @@ function renderLeaderboard(){
 
   const betweenRounds = isBetweenRounds();
   const miniBox = (team) => {
-    if(!team) return `<span class="mini-team mini-empty">—</span>`;
+    if(!team) return `<span class="mini-team mini-empty"><span class="mini-abbr">—</span></span>`;
     let cls;
     if(isTeamEliminated(team)) cls = 'mini-out';
     else if(betweenRounds) cls = 'mini-wait';
     else cls = 'mini-alive';
-    return `<span class="mini-team ${cls}" title="${team}">${abbr(team)}</span>`;
+    const { score } = teamScore(team);
+    const scoreLine = score > 0 ? `<span class="mini-score">+${score}</span>` : `<span class="mini-score" style="opacity:0.4;">—</span>`;
+    return `<span class="mini-team ${cls}" title="${team}"><span class="mini-abbr">${abbr(team)}</span>${scoreLine}</span>`;
   };
 
   const list = document.createElement('div');
