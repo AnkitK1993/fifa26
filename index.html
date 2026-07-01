@@ -1410,13 +1410,25 @@ async function init(){
       screenshotBtn.disabled = true;
       const reset = () => { screenshotBtn.innerHTML = `${SCREENSHOT_ICON} Screenshot`; screenshotBtn.disabled = false; };
       try {
+        // Capture only the current visible viewport
         const canvas = await html2canvas(document.body, {
           backgroundColor: '#0b0f14', scale: 2, useCORS: true, logging: false,
-          windowWidth: document.body.scrollWidth, windowHeight: document.body.scrollHeight,
-          scrollX: 0, scrollY: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          x: window.scrollX,
+          y: window.scrollY,
         });
         canvas.toBlob(async (blob) => {
+          const file = new File([blob], 'fifa26-leaderboard.png', { type: 'image/png' });
           const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          // 1. Native share API (opens share sheet on mobile — WhatsApp is selectable)
+          if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+            try {
+              await navigator.share({ files: [file], title: 'FIFA WC 2026 Leaderboard' });
+              reset(); return;
+            } catch(e){ if(e.name === 'AbortError'){ reset(); return; } }
+          }
+          // 2. Clipboard → open WhatsApp
           let copied = false;
           if(navigator.clipboard && navigator.clipboard.write){
             try {
@@ -1426,8 +1438,9 @@ async function init(){
           }
           if(copied){
             window.open(isMobile ? 'whatsapp://' : 'https://web.whatsapp.com/', '_blank');
-            showToast('Image copied — paste it in WhatsApp (long-press in chat)');
+            showToast('Image copied — long-press in WhatsApp chat to paste');
           } else {
+            // 3. Download fallback → open WhatsApp
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url; a.download = 'fifa26-leaderboard.png'; a.click();
