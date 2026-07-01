@@ -1390,8 +1390,7 @@ async function init(){
     }
     const SCREENSHOT_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>`;
     screenshotBtn.addEventListener('click', async () => {
-      const listEl = document.querySelector('#panel-leaderboard .lb-list');
-      if(!listEl || typeof html2canvas === 'undefined'){
+      if(typeof html2canvas === 'undefined'){
         showToast('Screenshot not ready, try again.');
         return;
       }
@@ -1399,8 +1398,10 @@ async function init(){
       screenshotBtn.disabled = true;
       const reset = () => { screenshotBtn.innerHTML = `${SCREENSHOT_ICON} Screenshot`; screenshotBtn.disabled = false; };
       try {
-        const canvas = await html2canvas(listEl, {
+        const canvas = await html2canvas(document.body, {
           backgroundColor: '#0b0f14', scale: 2, useCORS: true, logging: false,
+          windowWidth: document.body.scrollWidth, windowHeight: document.body.scrollHeight,
+          scrollX: 0, scrollY: 0,
         });
         canvas.toBlob(async (blob) => {
           const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
