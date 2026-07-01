@@ -617,11 +617,22 @@ function isBetweenRounds(){
     const key = STAGE_KEYS[i];
     const eligible = TEAMS.filter(t => i === 0 || getStage(t, STAGE_KEYS[i-1]) === 'advanced');
     if(eligible.length === 0) continue;
-    if(!eligible.some(t => getStage(t, key) !== 'pending')) continue; // stage not started
+    if(!eligible.some(t => getStage(t, key) !== 'pending')) continue;
     anyStarted = true;
-    if(!eligible.every(t => getStage(t, key) !== 'pending')) return false; // stage in progress
+    if(!eligible.every(t => getStage(t, key) !== 'pending')) return false;
   }
   return anyStarted;
+}
+
+function currentActiveStage(){
+  for(let i = 0; i < STAGE_KEYS.length; i++){
+    const key = STAGE_KEYS[i];
+    const eligible = TEAMS.filter(t => i === 0 || getStage(t, STAGE_KEYS[i-1]) === 'advanced');
+    if(eligible.length === 0) continue;
+    if(!eligible.some(t => getStage(t, key) !== 'pending')) continue;
+    if(!eligible.every(t => getStage(t, key) !== 'pending')) return key;
+  }
+  return null;
 }
 
 // Winner dropdown excludes eliminated teams, but keeps a participant's existing
@@ -1157,11 +1168,12 @@ function renderLeaderboard(){
   const abbr = (team) => team ? team.replace(/\s/g,'').slice(0,3).toUpperCase() : '—';
 
   const betweenRounds = isBetweenRounds();
+  const activeStage = currentActiveStage();
   const miniBox = (team) => {
     if(!team) return `<span class="mini-team mini-empty"><span class="mini-abbr">—</span></span>`;
     let cls;
     if(isTeamEliminated(team)) cls = 'mini-out';
-    else if(betweenRounds) cls = 'mini-wait';
+    else if(betweenRounds || (activeStage && getStage(team, activeStage) === 'pending')) cls = 'mini-wait';
     else cls = 'mini-alive';
     const { score } = teamScore(team);
     const scoreLine = score > 0 ? `<span class="mini-score">+${score}</span>` : `<span class="mini-score" style="opacity:0.4;">—</span>`;
