@@ -1147,17 +1147,10 @@ function renderLeaderboard(){
   const leaders = (allDecided && topScore !== null && topScore > 0)
     ? fullResults.filter(r => r.totalPoints === topScore) : [];
 
-  if(leaders.length > 0){
+  if(leaders.length === 1){
     const banner = document.createElement('div');
     banner.className = 'winner-banner';
-    banner.textContent = leaders.length === 1
-      ? `🏆 ${leaders[0].name} wins with ${topScore} points!`
-      : `🏆 It's a tie at ${topScore} points! Winners: ${leaders.map(w=>w.name).join(', ')}.`;
-    el.appendChild(banner);
-  } else if(allDecided && fullResults.length > 0 && topScore === 0){
-    const banner = document.createElement('div');
-    banner.className = 'nowinner-banner';
-    banner.textContent = `😬 No one scored — no picked teams advanced past R16.`;
+    banner.textContent = `🏆 ${leaders[0].name} wins with ${topScore} points!`;
     el.appendChild(banner);
   }
 
